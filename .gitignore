@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Large data files (too big for GitHub)
+data/train_transaction.csv
+data/test_transaction.csv
+data/train_identity.csv
+data/test_identity.csv
+*.parquet
+*.pkl
+*.pickle
+
+# Airflow - keep logs folder but ignore log files
+logs/**/*.log
+airflow.db
+airflow.cfg
+unittests.cfg
+webserver_config.py
+
+# MLflow
+mlruns/
+mlflow_artifacts/
+mlartifacts/
+
+# Feast
+feature_store/data/
+feature_store/.feastignore
+*.db
+
+# Docker volumes
+postgres_data/
+mongodb_data/
+redis_data/
+
+# Environment variables
+.env
+.env.local
+*.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.log
+
+# Models
+*.h5
+*.pkl
+*.joblib
+*.pt
+*.pth
+models/
+
+# Secrets
+*.pem
+*.key
+credentials.json
+secrets/

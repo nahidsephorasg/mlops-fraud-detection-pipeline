@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  mlflow-db:
+    image: postgres:16
+    container_name: mlflow-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mlflow
+      POSTGRES_PASSWORD: mlflow123
+      POSTGRES_DB: mlflow
+    ports:
+      - "5433:5432"
+    volumes:
+      - mlflow_postgres_data:/var/lib/postgresql/data
+    networks:
+      - fraud-detection-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mlflow-server:
+    image: python:3.11-slim
+    container_name: mlflow-server
+    restart: unless-stopped
+    environment:
+      MLFLOW_BACKEND_STORE_URI: postgresql://mlflow:mlflow123@mlflow-db:5432/mlflow
+      MLFLOW_ARTIFACT_ROOT: /mlflow/artifacts
+      MLFLOW_HOST: 0.0.0.0
+      MLFLOW_PORT: 5101
+      MLFLOW_SERVER_DISABLE_SECURITY_MIDDLEWARE: "true"
+    ports:
+      - "5101:5101"
+    volumes:
+      - ./mlflow_artifacts:/mlflow/artifacts
+    networks:
+      - fraud-detection-network
+    depends_on:
+      mlflow-db:
+        condition: service_healthy
+    command: >
+      bash -c "
+      pip install --no-cache-dir mlflow psycopg2-binary boto3 &&
+      mlflow server 
+        --backend-store-uri postgresql://mlflow:mlflow123@mlflow-db:5432/mlflow 
+        --default-artifact-root /mlflow/artifacts 
+        --host 0.0.0.0 
+        --port 5101
+      "
+
+volumes:
+  mlflow_postgres_data:
+    driver: local
+
+networks:
+  fraud-detection-network:
+    external: true
