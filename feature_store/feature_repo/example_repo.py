@@ -21,7 +21,9 @@ from feast.on_demand_feature_view import on_demand_feature_view
 from feast.types import Float32, Float64, Int64
 
 # Define a project for the feature repo
-project = Project(name="fraud_detection", description="A project for fraud detection features")
+project = Project(
+    name="fraud_detection", description="A project for fraud detection features"
+)
 
 # Define an entity for the driver. You can think of an entity as a primary key used to
 # fetch features.
@@ -95,9 +97,7 @@ driver_activity_v1 = FeatureService(
         driver_stats_fv[["conv_rate"]],  # Sub-selects a feature from a feature view
         transformed_conv_rate,  # Selects all features from the feature view
     ],
-    logging_config=LoggingConfig(
-        destination=FileLoggingDestination(path="data")
-    ),
+    logging_config=LoggingConfig(destination=FileLoggingDestination(path="data")),
 )
 driver_activity_v2 = FeatureService(
     name="driver_activity_v2", features=[driver_stats_fv, transformed_conv_rate]

@@ -1,0 +1,32 @@
+services:
+  preprocessing-service:
+    build:
+      context: ./preprocessing_service
+      dockerfile: Dockerfile
+    container_name: preprocessing-service
+    restart: unless-stopped
+    environment:
+      LOG_LEVEL: INFO  # DEBUG, INFO, WARNING, ERROR
+      # OpenTelemetry configuration
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
+      ENVIRONMENT: production
+      SENTRY_DSN: https://example@o4510332793389056.ingest.us.sentry.io/4510332813246464
+      SENTRY_TRACES_SAMPLE_RATE: "1.0"
+      SENTRY_PROFILES_SAMPLE_RATE: "1.0"
+      APP_VERSION: "1.0.0"
+    ports:
+      - "8031:8031"
+    volumes:
+      - ./logs:/app/logs 
+    networks:
+      - fraud-detection-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8031/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+networks:
+  fraud-detection-network:
+    external: true

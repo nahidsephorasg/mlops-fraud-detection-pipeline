@@ -1,0 +1,22 @@
+fastapi
+uvicorn[standard]
+pydantic
+mlflow
+pandas
+numpy
+scikit-learn
+xgboost
+requests
+prometheus-client
+evidently
+scipy
+
+# OpenTelemetry for distributed tracing
+opentelemetry-api==1.38.0
+opentelemetry-sdk==1.38.0
+opentelemetry-instrumentation-fastapi==0.59b0
+opentelemetry-instrumentation-requests==0.59b0
+opentelemetry-exporter-otlp-proto-grpc==1.38.0
+
+# Sentry for error monitoring
+sentry-sdk[fastapi]==2.43.0

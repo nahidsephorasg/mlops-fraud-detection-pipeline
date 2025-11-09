@@ -1,0 +1,50 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Scrape API service logs
+  - job_name: api
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: fraud-detection-api
+          service: api
+          __path__: /var/log/api.log
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) - (?P<logger>\S+) - (?P<level>\S+) - (?P<function>\S+):(?P<line>\d+) - (?P<message>.*)$'
+      - labels:
+          level:
+          logger:
+          function:
+      - timestamp:
+          source: timestamp
+          format: '2006-01-02 15:04:05,000'
+
+  # Scrape Preprocessing service logs
+  - job_name: preprocessing
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: preprocessing-service
+          service: preprocessing
+          __path__: /var/log/preprocessing.log
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) - (?P<logger>\S+) - (?P<level>\S+) - (?P<function>\S+):(?P<line>\d+) - (?P<message>.*)$'
+      - labels:
+          level:
+          logger:
+          function:
+      - timestamp:
+          source: timestamp
+          format: '2006-01-02 15:04:05,000'

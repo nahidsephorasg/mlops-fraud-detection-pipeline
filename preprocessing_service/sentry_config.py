@@ -1,0 +1,55 @@
+"""
+Sentry error monitoring configuration.
+"""
+
+import os
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.starlette import StarletteIntegration
+
+
+def setup_sentry(service_name: str):
+    """
+    Configure Sentry for error monitoring and performance tracking.
+
+    Args:
+        service_name: Name of the service for error tracking
+    """
+    sentry_dsn = os.getenv("SENTRY_DSN", "")
+
+    if not sentry_dsn:
+        print("SENTRY_DSN not configured - Sentry error monitoring disabled")
+        return
+
+    environment = os.getenv("ENVIRONMENT", "production")
+
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        environment=environment,
+        # Set traces_sample_rate to 1.0 to capture 100% of transactions for performance monitoring
+        traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "1.0")),
+        # Set profiles_sample_rate to 1.0 to profile 100% of sampled transactions
+        profiles_sample_rate=float(os.getenv("SENTRY_PROFILES_SAMPLE_RATE", "1.0")),
+        # Integrations
+        integrations=[
+            FastApiIntegration(),
+            StarletteIntegration(),
+        ],
+        # Additional configuration
+        release=os.getenv("APP_VERSION", "1.0.0"),
+        server_name=service_name,
+        # Capture additional context
+        attach_stacktrace=True,
+        send_default_pii=False,
+        # Before send hook
+        before_send=before_send_hook,
+    )
+
+    print(f"Sentry initialized for {service_name} in {environment} environment")
+
+
+def before_send_hook(event, hint):
+    """Filter sensitive data before sending to Sentry."""
+    event.setdefault("tags", {})
+    event["tags"]["service_type"] = "mlops-microservice"
+    return event

@@ -6,13 +6,12 @@ transaction_entity = Entity(
     name="transaction_id",
     join_keys=["TransactionID"],
     value_type=ValueType.INT64,
-    description="Transaction identifier"
+    description="Transaction identifier",
 )
 
 
 transaction_source = FileSource(
-    path="data/test_transactions.parquet",
-    timestamp_field="timestamp"
+    path="data/test_transactions.parquet", timestamp_field="timestamp"
 )
 
 
@@ -27,5 +26,5 @@ transaction_features = FeatureView(
         Field(name="card3", dtype=Float64),
     ],
     source=transaction_source,
-    online=True
+    online=True,
 )

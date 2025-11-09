@@ -1,50 +1,85 @@
 # Real-Time Fraud Detection MLOps Pipeline
 
-A complete end-to-end machine learning operations pipeline for detecting fraudulent transactions in real-time. This project demonstrates a production-ready MLOps setup with feature engineering, model training, experiment tracking, and deployment capabilities.
+A complete end-to-end machine learning operations pipeline for detecting fraudulent transactions in real-time. This project demonstrates a production-ready MLOps setup with feature engineering, model training, experiment tracking, model serving, and comprehensive observability.
 
-**Note**: This is a learning project to understand MLOps concepts and tools in practice.
+Note: This is a learning project to understand MLOps concepts and tools in practice.
 
 ## Project Overview
 
-This system processes transaction data, engineers features, trains multiple machine learning models, and tracks experiments using industry-standard MLOps tools. The entire pipeline runs in Docker containers with separate services for data storage, orchestration, feature store, and experiment tracking.
+This system processes transaction data, engineers features, trains machine learning models, tracks experiments, serves predictions via REST API, and monitors the entire pipeline with distributed tracing and error tracking. The architecture follows microservices patterns with separate services for data storage, orchestration, feature engineering, model serving, and observability.
 
 ## Architecture
 
-The pipeline consists of four main components running in separate Docker Compose files:
+The pipeline consists of six main components running in separate Docker Compose files:
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Docker Network                               │
-│                 (fraud-detection-network)                        │
-│                                                                  │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐     │
-│  │   MongoDB    │    │    Redis     │    │    Feast     │     │
-│  │   (27017)    │◄───┤    (6379)    │◄───┤   Server     │     │
-│  │              │    │              │    │   (6566)     │     │
-│  └──────┬───────┘    └──────────────┘    └──────────────┘     │
-│         │                                                       │
-│         │ Read/Write Features                                  │
-│         │                                                       │
-│  ┌──────▼───────────────────────────────────────────┐         │
-│  │           Apache Airflow (8080)                   │         │
-│  │  ┌────────────────┐  ┌────────────────┐         │         │
-│  │  │ Preprocessing  │  │    Training    │         │         │
-│  │  │   Pipeline     │─►│    Pipeline    │         │         │
-│  │  └────────────────┘  └────────┬───────┘         │         │
-│  └────────────────────────────────┼──────────────────┘         │
-│                                   │                            │
-│                                   │ Log Experiments            │
-│                                   │                            │
-│  ┌────────────────────────────────▼──────────────────┐        │
-│  │         MLflow Server (5101)                       │        │
-│  │  ┌──────────────┐  ┌────────────────────┐        │        │
-│  │  │  Experiments │  │  Model Registry    │        │        │
-│  │  │   Tracking   │  │  - XGBoost         │        │        │
-│  │  │              │  │  - Isolation Forest│        │        │
-│  │  └──────────────┘  └────────────────────┘        │        │
-│  └───────────────────────────────────────────────────┘        │
-│                                                                │
-└────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          Docker Network                                  │
+│                      (fraud-detection-network)                           │
+│                                                                          │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐             │
+│  │   MongoDB    │    │    Redis     │    │    Feast     │             │
+│  │   (27017)    │◄───┤    (6379)    │◄───┤   Server     │             │
+│  │              │    │              │    │   (6566)     │             │
+│  └──────┬───────┘    └──────────────┘    └──────────────┘             │
+│         │                                                               │
+│         │ Read/Write Features                                          │
+│         │                                                               │
+│  ┌──────▼────────────────────────────────────────────┐                │
+│  │           Apache Airflow (8080)                    │                │
+│  │  ┌────────────────┐  ┌────────────────┐          │                │
+│  │  │ Preprocessing  │  │    Training    │          │                │
+│  │  │   Pipeline     │─►│    Pipeline    │          │                │
+│  │  └────────────────┘  └────────┬───────┘          │                │
+│  └────────────────────────────────┼───────────────────┘                │
+│                                   │                                    │
+│                                   │ Log Experiments                    │
+│                                   │                                    │
+│  ┌────────────────────────────────▼────────────────┐                  │
+│  │         MLflow Server (5101)                     │                  │
+│  │  ┌──────────────┐  ┌──────────────────┐         │                  │
+│  │  │  Experiments │  │  Model Registry  │         │                  │
+│  │  │   Tracking   │  │  - XGBoost       │         │                  │
+│  │  │              │  │  - Isolation     │         │                  │
+│  │  └──────────────┘  └────────┬─────────┘         │                  │
+│  └───────────────────────────────┼───────────────────┘                  │
+│                                  │                                     │
+│                                  │ Load Model                          │
+│                                  │                                     │
+│  ┌───────────────────────────────▼──────────────────────────────┐    │
+│  │              Microservices Layer                              │    │
+│  │                                                                │    │
+│  │  ┌─────────────────────┐    ┌──────────────────────┐        │    │
+│  │  │  API Service        │───►│ Preprocessing        │        │    │
+│  │  │  (8000)             │    │ Service (8031)       │        │    │
+│  │  │                     │    │                      │        │    │
+│  │  │ - Model Inference   │    │ - Feature Engineering│        │    │
+│  │  │ - Request Handling  │    │ - Training Parity    │        │    │
+│  │  │ - Risk Assessment   │    │ - 130 Features       │        │    │
+│  │  └─────────┬───────────┘    └──────────────────────┘        │    │
+│  └────────────┼───────────────────────────────────────────────────┘    │
+│               │                                                       │
+│               │ Send Traces & Errors                                  │
+│               │                                                       │
+│  ┌────────────▼──────────────────────────────────────────────────┐  │
+│  │              Observability Stack                               │  │
+│  │                                                                 │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐        │  │
+│  │  │ Prometheus   │  │   Grafana    │  │     Loki     │        │  │
+│  │  │   (9090)     │  │   (3000)     │  │    (3100)    │        │  │
+│  │  │              │  │              │  │              │        │  │
+│  │  │  - Metrics   │  │ - Dashboards │  │ - Logs       │        │  │
+│  │  └──────────────┘  └──────────────┘  └──────────────┘        │  │
+│  │                                                                 │  │
+│  │  ┌──────────────┐  ┌──────────────┐                           │  │
+│  │  │    Tempo     │  │    Sentry    │                           │  │
+│  │  │   (3200)     │  │   (Cloud)    │                           │  │
+│  │  │              │  │              │                           │  │
+│  │  │  - Traces    │  │ - Errors     │                           │  │
+│  │  └──────────────┘  └──────────────┘                           │  │
+│  └─────────────────────────────────────────────────────────────────┘  │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Component Breakdown:**
@@ -67,7 +102,21 @@ The pipeline consists of four main components running in separate Docker Compose
    - Local artifact storage
    - MLflow UI on port 5101
 
-All services communicate through a shared Docker network called `fraud-detection-network`.
+4. **Microservices Layer**
+   - **API Service** (docker-compose.api.yaml) - Model serving and prediction endpoint
+   - **Preprocessing Service** (docker-compose.preprocessing.yaml) - Feature engineering service
+
+5. **Monitoring Stack** (docker-compose.monitoring.yaml)
+   - **Prometheus** (9090) - Metrics collection and storage
+   - **Grafana** (3000) - Visualization and dashboards
+   - **Loki** (3100) - Log aggregation and querying
+   - **Tempo** (3200) - Distributed tracing backend
+   - **Promtail** - Log shipping agent
+
+6. **Error Monitoring**
+   - **Sentry** (Cloud or Self-hosted) - Error tracking and performance monitoring
+
+All services communicate through a shared Docker network called fraud-detection-network.
 
 ## Setup and Installation
 
@@ -89,14 +138,32 @@ docker-compose -f docker-compose.airflow.yaml up -d
 
 # 3. Start MLflow
 docker-compose -f docker-compose.mlflow.yaml up -d
+
+# 4. Start monitoring stack
+docker-compose -f docker-compose.monitoring.yaml up -d
+
+# 5. Start preprocessing service
+docker-compose -f docker-compose.preprocessing.yaml up -d
+
+# 6. Start API service (after training models)
+docker-compose -f docker-compose.api.yaml up -d
 ```
 
 ### Access the UIs
 
+**Core Services:**
 - Airflow: http://localhost:8080 (admin/admin)
 - MLflow: http://localhost:5101
 - MongoDB Express: http://localhost:8081 (admin/admin123)
 - Redis Insight: http://localhost:8001
+
+**API Services:**
+- Fraud Detection API: http://localhost:8000 (docs at /docs)
+- Preprocessing Service: http://localhost:8031 (docs at /docs)
+
+**Monitoring:**
+- Grafana: http://localhost:3000 (admin/admin123)
+- Prometheus: http://localhost:9090
 
 ## Data Pipeline
 
@@ -222,13 +289,17 @@ If tasks fail with import errors:
 
 ## Technology Stack
 
-- **Orchestration**: Apache Airflow 3.1.2
-- **Experiment Tracking**: MLflow 3.6.0
-- **Feature Store**: Feast 0.56.0
-- **Data Storage**: MongoDB 8.2, Redis 7.4
-- **Databases**: PostgreSQL 16
-- **ML Libraries**: XGBoost, scikit-learn, pandas, numpy
-- **Containerization**: Docker, Docker Compose
+**Orchestration**: Apache Airflow 3.1.2  
+**Experiment Tracking**: MLflow 3.6.0  
+**Feature Store**: Feast 0.56.0  
+**Data Storage**: MongoDB 8.2, Redis
+**Databases**: PostgreSQL 16  
+**API Framework**: FastAPI  
+**ML Libraries**: XGBoost, Isolation Forest, scikit-learn  
+**Monitoring**: Prometheus, Grafana, Loki, Tempo  
+**Distributed Tracing**: OpenTelemetry  
+**Error Monitoring**: Sentry  
+**Containerization**: Docker, Docker Compose
 
 ## Project Structure
 
@@ -250,17 +321,272 @@ e2e-real-time-fraud-detection/
 ├── docker-compose.yaml
 ├── docker-compose.airflow.yaml
 ├── docker-compose.mlflow.yaml
+├── docker-compose.monitoring.yaml
+├── docker-compose.preprocessing.yaml
+├── docker-compose.api.yaml
 └── README.md
 ```
 
-## Next Steps
+## Model Deployment API
 
-Future enhancements for this pipeline:
+The fraud detection system uses a microservices architecture to ensure feature engineering consistency between training and serving.
 
-1. **Model Deployment**: Create REST API endpoint for real-time predictions
-2. **Monitoring**: Add data drift detection and model performance tracking
-3. **Automated Retraining**: Schedule periodic model updates
-4. **Model Serving**: Deploy best model using MLflow Model Serving
-5. **CI/CD Integration**: Automate testing and deployment
-6. **Feature Engineering**: Add more sophisticated feature transformations
-7. **Hyperparameter Tuning**: Implement automated hyperparameter optimization
+### Architecture: Why Microservices?
+
+**The Problem:**
+- ML models were trained on 130 engineered features (frequency encodings, aggregations, V-columns, C-columns)
+- Raw transaction data has only 12 input fields
+- Direct prediction fails due to feature mismatch
+
+**The Solution:**
+We implemented a preprocessing microservice that applies the same feature engineering used during training, ensuring training-serving parity.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              MICROSERVICES ARCHITECTURE                      │
+└─────────────────────────────────────────────────────────────┘
+
+Client (e.g., test_api.py, mobile app, web frontend)
+    │
+    │ POST /predict
+    │ Raw Transaction Data (12 fields):
+    │ {TransactionAmt, card1, card2, card3, card4, card5, 
+    │  card6, addr1, addr2, ProductCD, P_emaildomain, R_emaildomain}
+    │
+    ▼
+┌─────────────────────────────────┐
+│  Fraud Detection API            │  http://localhost:8000
+│  (Port 8000)                    │
+│                                 │
+│  Responsibilities:              │
+│  • Load model from MLflow       │
+│  • Manage predictions           │
+│  • Handle API requests          │
+│  • Return fraud risk assessment │
+└─────────────┬───────────────────┘
+              │
+              │ HTTP POST /engineer
+              │ Send raw transaction data
+              │
+              ▼
+┌─────────────────────────────────┐
+│  Preprocessing Service          │  http://localhost:8031
+│  (Port 8031)                    │
+│                                 │
+│  Responsibilities:              │
+│  • Frequency encoding           │
+│  • Aggregation features         │
+│  • Combination features         │
+│  • Add V & C columns            │
+│  • Return 130 features          │
+└─────────────┬───────────────────┘
+              │
+              │ Response: 130 Engineered Features
+              │ {TransactionID, TransactionAmt, card1, card3,
+              │  C1-C14, V95-V137, V279-V321, card1_freq,
+              │  card1_count, TransactionCents, ...}
+              │
+              ▼
+┌─────────────────────────────────┐
+│  Fraud Detection API            │
+│                                 │
+│  • Receives 130 features        │
+│  • Passes to XGBoost model      │
+│  • Gets prediction              │
+└─────────────┬───────────────────┘
+              │
+              │ Prediction Response
+              │
+              ▼
+┌─────────────────────────────────┐
+│  Client                         │
+│                                 │
+│  Receives:                      │
+│  {                              │
+│    "is_fraud": false,           │
+│    "fraud_probability": 0.15,   │
+│    "risk_level": "LOW",         │
+│    "transaction_id": "TXN_...", │
+│    "model_version": "6"         │
+│  }                              │
+└─────────────────────────────────┘
+```
+
+### Benefits of This Architecture
+
+**Training/Serving Parity**: Identical feature engineering in training and production  
+**Separation of Concerns**: Feature logic isolated from prediction logic  
+**Reusability**: Other services can use the same preprocessing endpoint  
+**Independent Scaling**: Scale preprocessing and prediction services separately  
+**Maintainability**: Update feature engineering without touching prediction code  
+**MLOps Best Practice**: Industry-standard pattern for production ML systems
+
+### Quick Start
+
+```bash
+# 1. Start preprocessing service (feature engineering)
+docker-compose -f docker-compose.preprocessing.yaml up -d
+
+# 2. Start prediction API (model serving)
+docker-compose -f docker-compose.api.yaml up -d
+
+# 3. Test the complete pipeline
+python test_api.py
+
+# 4. View API documentation
+open http://localhost:8000/docs        # Prediction API
+open http://localhost:8031/docs        # Preprocessing API
+```
+
+### Example Usage
+
+```python
+import requests
+
+response = requests.post(
+    "http://localhost:8000/predict",
+    json={
+        "TransactionAmt": 150.50,
+        "card1": 13926,
+        "card2": 150.0,
+        "card3": 150.0,
+        "card4": "visa",
+        "card5": 226.0,
+        "card6": "credit",
+        "addr1": 315.0,
+        "addr2": 87.0,
+        "ProductCD": "W",
+        "P_emaildomain": "gmail.com",
+        "R_emaildomain": "gmail.com"
+    }
+)
+
+result = response.json()
+print(f"Fraud: {result['is_fraud']}")
+print(f"Probability: {result['fraud_probability']:.2%}")
+print(f"Risk Level: {result['risk_level']}")
+```
+
+See `api/README.md` for complete API documentation.
+
+## Monitoring and Observability
+
+The system includes comprehensive observability with metrics, logs, traces, and error monitoring.
+
+### Components
+
+**1. Metrics (Prometheus + Grafana)**
+- Request rate and latency (P50, P95, P99)
+- Error rates (4xx, 5xx)
+- Fraud detection rate
+- Feature engineering performance
+- Model inference timing
+
+**2. Logs (Loki + Promtail + Grafana)**
+- Structured application logs
+- Request and response logging
+- Trace ID correlation
+- Log aggregation and search
+
+**3. Distributed Tracing (OpenTelemetry + Tempo + Grafana)**
+- End-to-end request flow visualization
+- Service dependency mapping
+- Performance bottleneck identification
+- Automatic context propagation between services
+
+**4. Error Monitoring (Sentry)**
+- Real-time error tracking
+- Stack trace capture
+- Performance profiling
+- Email and Slack alerts
+
+### Quick Start
+
+```bash
+# Start monitoring stack
+docker-compose -f docker-compose.monitoring.yaml up -d
+
+# Access dashboards
+open http://localhost:3000  # Grafana (admin/admin123)
+open http://localhost:9090  # Prometheus
+```
+
+### Pre-configured Dashboards
+
+**Fraud Detection API**
+- Real-time request monitoring
+- Latency percentiles
+- Fraud rate tracking
+- Risk distribution
+
+**Distributed Tracing**
+- Recent traces timeline
+- Error traces filtered view
+- Slow traces (over 500ms)
+- Service dependency graph
+
+**Logs**
+- Live log streaming
+- Log rate by level
+- Error log filtering
+- Trace-to-log correlation
+
+### Key Features
+
+**Trace-Log-Metric Correlation**
+- Every request gets a unique trace ID
+- Trace ID appears in all logs for that request
+- Click any log to see full trace
+- Click any trace to see related logs
+- Link metrics spikes to specific traces
+
+**Example: Debugging a Slow Request**
+1. Notice latency spike in Prometheus metrics
+2. Search Tempo for slow traces (duration over 500ms)
+3. Click trace to see timing breakdown
+4. Identify bottleneck (model inference took 380ms)
+5. View correlated logs for that trace
+6. Fix issue and verify with new traces
+
+### Documentation
+
+- LOGGING.md - Complete logging guide
+- TRACING.md - Distributed tracing and Sentry setup
+- OBSERVABILITY_SUMMARY.md - Quick reference
+
+## What This Project Implements
+
+This project demonstrates a complete MLOps pipeline with:
+
+**Data Engineering**
+- Feature engineering with frequency encodings, aggregations, and derived features
+- Feature store integration with Feast
+- MongoDB for data persistence
+- Redis for online feature serving
+
+**Model Training**
+- Automated training pipelines with Apache Airflow
+- Multiple model training (XGBoost, Isolation Forest)
+- Experiment tracking with MLflow
+- Model registry and versioning
+
+**Model Serving**
+- Microservices architecture for prediction and feature engineering
+- REST API with FastAPI
+- Training-serving parity through shared feature engineering
+- Real-time fraud risk assessment
+
+**Observability**
+- Metrics collection with Prometheus
+- Distributed tracing with OpenTelemetry and Tempo
+- Log aggregation with Loki and Promtail
+- Error monitoring with Sentry
+- Unified visualization in Grafana
+- Trace-log-metric correlation
+
+**Infrastructure**
+- Containerized deployment with Docker Compose
+- Service orchestration across multiple compose files
+- Shared networking for service communication
+- Health checks and automated restarts
+

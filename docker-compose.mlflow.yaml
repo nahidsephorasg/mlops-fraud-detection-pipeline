@@ -31,6 +31,7 @@ services:
       MLFLOW_HOST: 0.0.0.0
       MLFLOW_PORT: 5101
       MLFLOW_SERVER_DISABLE_SECURITY_MIDDLEWARE: "true"
+      MLFLOW_ARTIFACTS_DESTINATION: /mlflow/artifacts
     ports:
       - "5101:5101"
     volumes:
@@ -45,9 +46,10 @@ services:
       pip install --no-cache-dir mlflow psycopg2-binary boto3 &&
       mlflow server 
         --backend-store-uri postgresql://mlflow:mlflow123@mlflow-db:5432/mlflow 
-        --default-artifact-root /mlflow/artifacts 
+        --artifacts-destination /mlflow/artifacts 
         --host 0.0.0.0 
         --port 5101
+        --serve-artifacts
       "
 
 volumes:

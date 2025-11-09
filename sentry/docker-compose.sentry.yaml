@@ -1,0 +1,195 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: fraud-sentry-postgres
+    environment:
+      POSTGRES_USER: sentry
+      POSTGRES_PASSWORD: sentry
+      POSTGRES_DB: sentry
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentry"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:8-alpine
+    container_name: fraud-sentry-redis
+    volumes:
+      - ./data/redis:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: fraud-sentry-kafka
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - sentry-kafka:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: fraud-sentry-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - sentry-zookeeper:/var/lib/zookeeper/data
+    restart: unless-stopped
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: fraud-sentry-clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - sentry-clickhouse:/var/lib/clickhouse
+    restart: unless-stopped
+
+  symbolicator:
+    image: getsentry/symbolicator:latest
+    container_name: fraud-sentry-symbolicator
+    volumes:
+      - sentry-symbolicator:/data
+    restart: unless-stopped
+    command: run
+
+  # Sentry Web UI
+  web:
+    image: getsentry/sentry:latest
+    container_name: fraud-sentry-web
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      clickhouse:
+        condition: service_started
+    ports:
+      - "9001:9000"
+    environment:
+      SENTRY_SECRET_KEY: d76b5c69c347bcb25d876ee1bdc9abed34409e1e2c43549dd88ab790db43c687
+      SENTRY_POSTGRES_HOST: postgres
+      SENTRY_POSTGRES_PORT: 5432
+      SENTRY_DB_NAME: sentry
+      SENTRY_DB_USER: sentry
+      SENTRY_DB_PASSWORD: sentry
+      SENTRY_REDIS_HOST: redis
+      SENTRY_REDIS_PORT: 6379
+      SENTRY_KAFKA_HOSTS: kafka:9092
+      SENTRY_CLICKHOUSE_HOST: clickhouse
+      SENTRY_WEB_HOST: 0.0.0.0
+      SENTRY_WEB_PORT: 9000
+      SENTRY_SINGLE_ORGANIZATION: "true"
+    volumes:
+      - sentry-data:/data
+    networks:
+      - default
+      - fraud-detection-network
+    restart: unless-stopped
+    command: run web
+
+  # Sentry Cron
+  cron:
+    image: getsentry/sentry:latest
+    container_name: fraud-sentry-cron
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    environment:
+      SENTRY_SECRET_KEY: d76b5c69c347bcb25d876ee1bdc9abed34409e1e2c43549dd88ab790db43c687
+      SENTRY_POSTGRES_HOST: postgres
+      SENTRY_POSTGRES_PORT: 5432
+      SENTRY_DB_NAME: sentry
+      SENTRY_DB_USER: sentry
+      SENTRY_DB_PASSWORD: sentry
+      SENTRY_REDIS_HOST: redis
+      SENTRY_REDIS_PORT: 6379
+      SENTRY_KAFKA_HOSTS: kafka:9092
+      SENTRY_CLICKHOUSE_HOST: clickhouse
+    volumes:
+      - sentry-data:/data
+    restart: unless-stopped
+    command: run cron
+
+  # Sentry Worker
+  worker:
+    image: getsentry/sentry:latest
+    container_name: fraud-sentry-worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    environment:
+      SENTRY_SECRET_KEY: d76b5c69c347bcb25d876ee1bdc9abed34409e1e2c43549dd88ab790db43c687
+      SENTRY_POSTGRES_HOST: postgres
+      SENTRY_POSTGRES_PORT: 5432
+      SENTRY_DB_NAME: sentry
+      SENTRY_DB_USER: sentry
+      SENTRY_DB_PASSWORD: sentry
+      SENTRY_REDIS_HOST: redis
+      SENTRY_REDIS_PORT: 6379
+      SENTRY_KAFKA_HOSTS: kafka:9092
+      SENTRY_CLICKHOUSE_HOST: clickhouse
+    volumes:
+      - sentry-data:/data
+    networks:
+      - default
+      - fraud-detection-network
+    restart: unless-stopped
+    command: run worker
+
+volumes:
+  sentry-postgres:
+  sentry-redis:
+  sentry-kafka:
+  sentry-zookeeper:
+  sentry-clickhouse:
+  sentry-symbolicator:
+  sentry-data:
+
+networks:
+  default:
+    name: sentry-network
+  fraud-detection-network:
+    external: true
